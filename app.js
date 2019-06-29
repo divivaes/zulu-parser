@@ -4,7 +4,8 @@ const mssql = require('mssql')
 const request = require('request')
 const cron = require('cron')
 const moment = require('moment')
-// const logs = require('./config/logger').logger
+const morgan = require('morgan')
+const logs = require('./config/logger').logger
 const cors = require('cors')
 
 // Initializing express to => app
@@ -12,6 +13,9 @@ const app = express()
 
 // CORS
 app.use(cors())
+
+// Initializing morgan
+app.use(morgan('combined'))
 
 // Initializing environment variables
 require('dotenv').config()
@@ -22,22 +26,22 @@ const connection = mysql.createConnection(db_config.connection)
 connection.query(`USE ${db_config.database}`)
 
 const setInitialStats = () => {
-  console.log('Initializing function -=setInitialStats=- on start')
+  logs.server('Initializing function -=setInitialStats=- on start')
   connection.query('SELECT * FROM stats', (err, rows) => {
-    if (err) console.log(`Error on selecting from table STATS => - ${err}`)
+    if (err) logs.info(`Error on selecting from table STATS => - ${err}`)
     if (rows.length === 4) {
-      console.log('Server rebooted. Updating stats')
+      logs.info('Server rebooted. Updating stats')
       getStats()
     } else if (rows.length > 4) {
       connection.query('TRUNCATE TABLE stats', (err, rows) => {
-        if (err) console.log(`Error on truncating table STATS => - ${err}`)
-        console.log(
+        if (err) logs.info(`Error on truncating table STATS => - ${err}`)
+        logs.info(
           'Too much data and table will be truncated. Inserting new data'
         )
         insertStats()
       })
     } else if (rows.length === 0) {
-      console.log('Table is empty. Inserting new data')
+      logs.info('Table is empty. Inserting new data')
       insertStats()
     }
   })
@@ -56,7 +60,7 @@ const insertStats = async () => {
       ]
     },
     (error, response, body) => {
-      if (error) console.log(`Error on request WRM URL - ${error}`)
+      if (error) logs.info(`Error on request WRM URL - ${error}`)
 
       let time = moment()
         .format('YYYY-MM-DD hh:mm:ss')
@@ -64,10 +68,10 @@ const insertStats = async () => {
       body = JSON.parse(body)
       body.forEach(obj => {
         connection.query('INSERT INTO stats SET ?', obj, (err, rows) => {
-          if (err) console.log(`Error on inserting to table STATS => - ${err}`)
+          if (err) logs.info(`Error on inserting to table STATS => - ${err}`)
         })
       })
-      console.log(`Inserted new values to table STATS on - ${time}`)
+      logs.info(`Inserted new values to table STATS on - ${time}`)
     }
   )
 }
@@ -85,7 +89,7 @@ const getStats = async () => {
       ]
     },
     (error, response, body) => {
-      if (error) console.log(`Error on request WRM URL - ${error}`)
+      if (error) logs.info(`Error on request WRM URL - ${error}`)
 
       let time = moment()
         .format('YYYY-MM-DD hh:mm:ss')
@@ -96,11 +100,11 @@ const getStats = async () => {
           `UPDATE stats SET ? WHERE flowmeter_id = ${obj.flowmeter_id} `,
           obj,
           (err, rows) => {
-            if (err) console.log(`Error on updating to table STATS => - ${err}`)
+            if (err) logs.info(`Error on updating to table STATS => - ${err}`)
           }
         )
       })
-      console.log(`Updated values in table STATS on - ${time}`)
+      logs.info(`Updated values in table STATS on - ${time}`)
     }
   )
 }
@@ -109,7 +113,7 @@ const cronJob_getStats_after_start = cron.job('0 */15 * * * *', () => {
   let time = moment()
     .format('YYYY-MM-DD hh:mm:ss')
     .trim()
-  console.log(`=cronJob_getStats_after_start= started at - ${time}`)
+  logs.info(`=cronJob_getStats_after_start= started at - ${time}`)
   getStats()
 })
 
@@ -120,4 +124,4 @@ cronJob_getStats_after_start.start()
 // Starting server
 const port = process.env.PORT || 5000
 
-app.listen(port, () => console.log(`Magic is happening on port ${port}`))
+app.listen(port, () => logs.info(`Magic is happening on port ${port}`))

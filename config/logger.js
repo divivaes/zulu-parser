@@ -1,35 +1,38 @@
-const winston = require('winston')
-const moment = require('moment')
+const { createLogger, format, transports } = require('winston')
 const settings = require('./config')
+const fs = require('fs')
+const path = require('path')
+const logDir = 'log'
 
-const tsFormat = () =>
-  moment()
-    .format('YYYY-MM-DD hh:mm:ss')
-    .trim()
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir)
+}
 
-const logger = new winston.createLogger({
+const filename = path.join(logDir, 'debug.log')
+
+const logger = createLogger({
   exitOnError: false,
   levels: settings.logger.customLevels.levels,
-  colors: settings.logger.customLevels.colors,
-  transports: [
-    new winston.transports.Console({
-      level: 'info',
-      handleExceptions: true,
-      prettyPrint: true,
-      silent: false,
-      timestamp: tsFormat,
-      colorize: true,
-      json: false
+  format: format.combine(
+    format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss'
     }),
-    new winston.transports.File({
-      filename: './' + settings.logger.debugFileName,
-      name: 'debug-info',
-      level: 'info',
-      timestamp: tsFormat,
-      maxsize: 5555242880,
-      maxFiles: 10,
-      handleExceptions: true,
-      json: false
+    format.prettyPrint(
+      info => `${info.timestamp} ${info.level}: ${info.message}`
+    )
+  ),
+  transports: [
+    new transports.Console({
+      level: settings.logger.customLevels.levels,
+      format: format.combine(
+        format.colorize(),
+        format.printf(
+          info => `${info.timestamp} ${info.level}: ${info.message}`
+        )
+      )
+    }),
+    new transports.File({
+      filename
     })
   ]
 })
